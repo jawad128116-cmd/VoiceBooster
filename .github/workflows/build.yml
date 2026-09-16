@@ -40,7 +40,7 @@ jobs:
           include ':app'
           EOF
 
-          # 2. Root build.gradle
+          # 2. Root build.gradle (Updated for AGP 8.1.1)
           cat << 'EOF' > build.gradle
           buildscript {
               repositories {
@@ -48,7 +48,7 @@ jobs:
                   mavenCentral()
               }
               dependencies {
-                  classpath 'com.android.tools.build:gradle:7.4.2'
+                  classpath 'com.android.tools.build:gradle:8.1.1'
               }
           }
           allprojects {
@@ -69,11 +69,11 @@ jobs:
           }
           android {
               namespace 'com.example.girlvoicechanger'
-              compileSdk 33
+              compileSdk 34
               defaultConfig {
                   applicationId "com.example.girlvoicechanger"
                   minSdk 24
-                  targetSdk 33
+                  targetSdk 34
                   versionCode 1
                   versionName "1.0"
               }
@@ -280,10 +280,10 @@ jobs:
           }
           EOF
 
-      - name: Install Gradle & Generate Wrapper
+      - name: Setup Compatible Gradle Wrapper (Version 8.2)
         run: |
           sudo apt-get update && sudo apt-get install -y gradle
-          gradle wrapper
+          gradle wrapper --gradle-version 8.2
           chmod +x ./gradlew
 
       - name: Build Debug APK
@@ -294,5 +294,4 @@ jobs:
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
-          
           
