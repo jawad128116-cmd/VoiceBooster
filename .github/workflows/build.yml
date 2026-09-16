@@ -15,6 +15,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
+
       - name: Create Project Files
         run: |
           mkdir -p app/src/main/java/com/example/girlvoicechanger
@@ -262,19 +267,12 @@ jobs:
           }
           EOF
 
-      - name: Setup Gradle Wrapper
-        run: |
-          gradle wrapper --gradle-version 8.2
-          chmod +x ./gradlew
-
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
-          
-          
           
