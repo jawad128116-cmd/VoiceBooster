@@ -15,6 +15,271 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Auto-Create Project Structure & Files
+        run: |
+          mkdir -p app/src/main/java/com/example/girlvoicechanger
+          mkdir -p app/src/main/res/layout
+
+          # 1. settings.gradle
+          cat << 'EOF' > settings.gradle
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "Voice Booster"
+          include ':app'
+          EOF
+
+          # 2. Root build.gradle
+          cat << 'EOF' > build.gradle
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:7.4.2'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          task clean(type: Delete) {
+              delete rootProject.buildDir
+          }
+          EOF
+
+          # 3. App build.gradle
+          cat << 'EOF' > app/build.gradle
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.example.girlvoicechanger'
+              compileSdk 33
+              defaultConfig {
+                  applicationId "com.example.girlvoicechanger"
+                  minSdk 24
+                  targetSdk 33
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.8.0'
+          }
+          EOF
+
+          # 4. AndroidManifest.xml
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.example.girlvoicechanger">
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <application
+                  android:allowBackup="true"
+                  android:label="Voice Booster"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # 5. activity_main.xml
+          cat << 'EOF' > app/src/main/res/layout/activity_main.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:gravity="center"
+              android:padding="24dp">
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="Microphone Volume Booster"
+                  android:textSize="20sp"
+                  android:textStyle="bold"
+                  android:layout_marginBottom="24dp"/>
+              <Button
+                  android:id="@+id/btnStart"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Start Amplification"
+                  android:layout_marginBottom="16dp"/>
+              <Button
+                  android:id="@+id/btnStop"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Stop Amplification"
+                  android:layout_marginBottom="24dp"/>
+              <TextView
+                  android:id="@+id/tvGain"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="Gain Multiplier: 5.0x"
+                  android:textSize="16sp"
+                  android:layout_marginBottom="8dp"/>
+              <SeekBar
+                  android:id="@+id/seekBarGain"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:max="50"
+                  android:progress="5"/>
+          </LinearLayout>
+          EOF
+
+          # 6. MainActivity.java
+          cat << 'EOF' > app/src/main/java/com/example/girlvoicechanger/MainActivity.java
+          package com.example.girlvoicechanger;
+
+          import android.Manifest;
+          import android.content.pm.PackageManager;
+          import android.media.AudioFormat;
+          import android.media.AudioManager;
+          import android.media.AudioRecord;
+          import android.media.AudioTrack;
+          import android.media.MediaRecorder;
+          import android.os.Bundle;
+          import android.widget.Button;
+          import android.widget.SeekBar;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import androidx.annotation.NonNull;
+          import androidx.appcompat.app.AppCompatActivity;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+
+          public class MainActivity extends AppCompatActivity {
+              private static final int PERMISSION_REQ_CODE = 123;
+              private boolean isRunning = false;
+              private Thread audioThread;
+              private float gainMultiplier = 5.0f;
+              private int sampleRate = 44100;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+
+                  Button btnStart = findViewById(R.id.btnStart);
+                  Button btnStop = findViewById(R.id.btnStop);
+                  TextView tvGain = findViewById(R.id.tvGain);
+                  SeekBar seekBarGain = findViewById(R.id.seekBarGain);
+
+                  seekBarGain.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      @Override
+                      public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                          gainMultiplier = Math.max(1.0f, progress);
+                          tvGain.setText("Gain Multiplier: " + gainMultiplier + "x");
+                      }
+                      @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+                      @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+                  });
+
+                  btnStart.setOnClickListener(v -> {
+                      if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                          ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, PERMISSION_REQ_CODE);
+                      } else {
+                          startAudioAmplification();
+                      }
+                  });
+
+                  btnStop.setOnClickListener(v -> stopAudioAmplification());
+              }
+
+              private void startAudioAmplification() {
+                  if (isRunning) return;
+                  isRunning = true;
+                  audioThread = new Thread(() -> {
+                      android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+                      int bufferSize = AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+                      if (bufferSize <= 0) bufferSize = 4096;
+
+                      AudioRecord recorder = null;
+                      AudioTrack track = null;
+                      try {
+                          recorder = new AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize * 2);
+                          track = new AudioTrack(AudioManager.STREAM_VOICE_CALL, sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize * 2, AudioTrack.MODE_STREAM);
+
+                          recorder.startRecording();
+                          track.play();
+
+                          short[] buffer = new short[bufferSize / 2];
+                          while (isRunning) {
+                              int readSize = recorder.read(buffer, 0, buffer.length);
+                              if (readSize > 0) {
+                                  for (int i = 0; i < readSize; i++) {
+                                      float amplified = buffer[i] * gainMultiplier;
+                                      if (amplified > 32767.0f) amplified = 32767.0f;
+                                      if (amplified < -32768.0f) amplified = -32768.0f;
+                                      buffer[i] = (short) amplified;
+                                  }
+                                  track.write(buffer, 0, readSize);
+                              }
+                          }
+                      } catch (Exception e) {
+                          e.printStackTrace();
+                      } finally {
+                          if (recorder != null) { try { recorder.stop(); recorder.release(); } catch (Exception ignored) {} }
+                          if `track != null` { try { track.stop(); track.release(); } catch (Exception ignored) {} }
+                      }
+                  });
+                  audioThread.start();
+                  Toast.makeText(this, "Amplification Started", Toast.LENGTH_SHORT).show();
+              }
+
+              private void stopAudioAmplification() {
+                  isRunning = false;
+                  if (audioThread != null) {
+                      audioThread.interrupt();
+                      audioThread = null;
+                  }
+                  Toast.makeText(this, "Amplification Stopped", Toast.LENGTH_SHORT).show();
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                  if (requestCode == PERMISSION_REQ_CODE && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                      startAudioAmplification();
+                  }
+              }
+          }
+          EOF
+
       - name: Install Gradle & Generate Wrapper
         run: |
           sudo apt-get update && sudo apt-get install -y gradle
