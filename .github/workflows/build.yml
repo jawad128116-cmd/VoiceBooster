@@ -40,7 +40,7 @@ jobs:
           include ':app'
           EOF
 
-          # 2. Root build.gradle (Updated for AGP 8.1.1)
+          # 2. Root build.gradle
           cat << 'EOF' > build.gradle
           buildscript {
               repositories {
@@ -280,18 +280,19 @@ jobs:
           }
           EOF
 
-      - name: Setup Compatible Gradle Wrapper (Version 8.2)
+      - name: Setup Gradle Wrapper Safely
         run: |
           sudo apt-get update && sudo apt-get install -y gradle
-          gradle wrapper --gradle-version 8.2
+          gradle wrapper
           chmod +x ./gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+      - name: Build Debug APK with Stacktrace
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          
           
