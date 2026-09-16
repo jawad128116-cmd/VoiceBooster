@@ -42,6 +42,8 @@ jobs:
           mkdir -p app/src/main/java/com/example/girlvoicechanger
           mkdir -p app/src/main/res/layout
 
+          echo "sdk.dir=$HOME/android-sdk" > local.properties
+
           cat << 'EOF' > settings.gradle
           pluginManagement {
               repositories {
